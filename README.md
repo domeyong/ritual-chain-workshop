@@ -44,13 +44,20 @@ bytes32 commitment = keccak256(
 
 ## Test Plan
 
-Implemented tests are in `hardhat/test/AIJudge.ts`.
+Implemented tests are in `hardhat/test/AIJudge.ts`. `hardhat/contracts/TestableAIJudge.sol` is a test helper used only to verify payout behavior after judging.
 
 - Valid reveal: submit a commitment, wait until reveal phase, reveal the matching answer and salt.
 - Invalid reveal: submit a commitment, reveal with the wrong salt, expect revert.
+- Copied commitment: another address cannot reveal a copied commitment.
+- Cross-bounty replay: a commitment for one bounty cannot reveal on another bounty.
 - Empty reveal: submit a commitment for an empty answer, reveal it, expect revert.
+- Answer length: 2,000 bytes is accepted and 2,001 bytes is rejected.
 - Timing and duplicate protection: reject duplicate commitment, reject reveal before the reveal phase, reject late or repeated reveal.
+- Submission cap: the 11th commitment is rejected when the bounty already has 10 submissions.
 - No valid reveals: after the reveal deadline, owner can cancel and recover the reward.
+- Owner-only controls: non-owners cannot judge, finalize, or cancel.
+- Judging safety: judging is blocked before the reveal deadline and empty LLM input is rejected.
+- Payout safety: invalid winners and unrevealed winners are rejected, one revealed winner is paid once, and repeat finalization is blocked.
 
 Run:
 

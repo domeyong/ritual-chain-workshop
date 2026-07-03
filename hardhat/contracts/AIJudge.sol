@@ -214,6 +214,7 @@ contract AIJudge is PrecompileConsumer {
         require(!bounty.finalized, "already finalized");
         require(block.timestamp >= bounty.revealDeadline, "reveal not closed");
         require(revealedSubmissionCount(bountyId) > 0, "no revealed answers");
+        require(llmInput.length > 0, "empty llm input");
 
         bytes memory output = _executePrecompile(
             LLM_INFERENCE_PRECOMPILE,
