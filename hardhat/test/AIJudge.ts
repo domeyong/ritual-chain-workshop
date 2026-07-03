@@ -101,6 +101,31 @@ describe("AIJudge commit-reveal flow", () => {
     await connection.close();
   });
 
+  it("rejects an empty revealed answer", async () => {
+    const { aiJudge, connection, networkHelpers, participant } =
+      await deployBounty();
+
+    const answer = "";
+    const salt = toHex("empty salt", { size: 32 });
+    const commitment = commitmentFor(answer, salt, participant.account.address, 1n);
+
+    await aiJudge.write.submitCommitment([1n, commitment], {
+      account: participant.account,
+    });
+    await networkHelpers.time.increaseTo(
+      Number(await aiJudge.read.bounties([1n]).then((bounty) => bounty[4])),
+    );
+
+    await assert.rejects(
+      aiJudge.write.revealAnswer([1n, answer, salt], {
+        account: participant.account,
+      }),
+      /empty answer/,
+    );
+
+    await connection.close();
+  });
+
   it("enforces one commitment per participant and reveal timing", async () => {
     const { aiJudge, connection, networkHelpers, participant } =
       await deployBounty();
@@ -144,6 +169,32 @@ describe("AIJudge commit-reveal flow", () => {
       }),
       /reveal closed|already revealed/,
     );
+
+    await connection.close();
+  });
+
+  it("lets the owner cancel and recover the reward when nobody reveals", async () => {
+    const { aiJudge, connection, networkHelpers, participant } =
+      await deployBounty();
+
+    const answer = "I will not reveal this.";
+    const salt = toHex("hidden salt", { size: 32 });
+    const commitment = commitmentFor(answer, salt, participant.account.address, 1n);
+
+    await aiJudge.write.submitCommitment([1n, commitment], {
+      account: participant.account,
+    });
+
+    await networkHelpers.time.increaseTo(
+      Number(await aiJudge.read.bounties([1n]).then((bounty) => bounty[5])),
+    );
+
+    await aiJudge.write.cancelBounty([1n]);
+
+    const bounty = await aiJudge.read.getBounty([1n]);
+
+    assert.equal(bounty[3], 0n);
+    assert.equal(bounty[7], true);
 
     await connection.close();
   });

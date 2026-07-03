@@ -85,6 +85,12 @@ contract AIJudge is PrecompileConsumer {
         uint256 reward
     );
 
+    event BountyCancelled(
+        uint256 indexed bountyId,
+        address indexed owner,
+        uint256 refundedReward
+    );
+
     modifier onlyOwner(uint256 bountyId) {
         require(msg.sender == bounties[bountyId].owner, "not bounty owner");
         _;
@@ -177,6 +183,7 @@ contract AIJudge is PrecompileConsumer {
         require(block.timestamp < bounty.revealDeadline, "reveal closed");
         require(!bounty.judged, "already judged");
         require(!bounty.finalized, "already finalized");
+        require(bytes(answer).length > 0, "empty answer");
         require(bytes(answer).length <= MAX_ANSWER_LENGTH, "answer too long");
 
         uint256 storedIndex = submissionIndexByUser[bountyId][msg.sender];
@@ -254,6 +261,27 @@ contract AIJudge is PrecompileConsumer {
         require(ok, "payment failed");
 
         emit WinnerFinalized(bountyId, winnerIndex, winner, reward);
+    }
+
+    function cancelBounty(
+        uint256 bountyId
+    ) external bountyExists(bountyId) onlyOwner(bountyId) {
+        Bounty storage bounty = bounties[bountyId];
+
+        require(block.timestamp >= bounty.revealDeadline, "reveal not closed");
+        require(!bounty.judged, "already judged");
+        require(!bounty.finalized, "already finalized");
+        require(revealedSubmissionCount(bountyId) == 0, "has revealed answers");
+
+        bounty.finalized = true;
+
+        uint256 reward = bounty.reward;
+        bounty.reward = 0;
+
+        (bool ok, ) = payable(bounty.owner).call{value: reward}("");
+        require(ok, "refund failed");
+
+        emit BountyCancelled(bountyId, bounty.owner, reward);
     }
 
     function getBounty(

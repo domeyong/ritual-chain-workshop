@@ -10,6 +10,7 @@ This submission updates the workshop bounty judge with a commit-reveal flow so a
 - Only revealed, valid answers can win.
 - `judgeAll(uint256 bountyId, bytes calldata llmInput)` can run only after the reveal deadline.
 - `finalizeWinner(uint256 bountyId, uint256 winnerIndex)` can pay only a revealed submission after judging.
+- `cancelBounty(uint256 bountyId)` lets the owner recover the reward after the reveal deadline if nobody revealed a valid answer.
 
 ## Bounty Lifecycle
 
@@ -36,8 +37,10 @@ bytes32 commitment = keccak256(
 - One address can submit only one commitment per bounty.
 - Wrong answers or wrong salts cannot reveal another commitment.
 - Unrevealed submissions are not eligible for the reward.
+- Empty answers are rejected during reveal.
 - Judging is blocked until the reveal phase is closed.
 - Finalization is blocked until judging is complete.
+- If nobody reveals, the owner can cancel the bounty and recover the locked reward.
 
 ## Test Plan
 
@@ -45,7 +48,9 @@ Implemented tests are in `hardhat/test/AIJudge.ts`.
 
 - Valid reveal: submit a commitment, wait until reveal phase, reveal the matching answer and salt.
 - Invalid reveal: submit a commitment, reveal with the wrong salt, expect revert.
+- Empty reveal: submit a commitment for an empty answer, reveal it, expect revert.
 - Timing and duplicate protection: reject duplicate commitment, reject reveal before the reveal phase, reject late or repeated reveal.
+- No valid reveals: after the reveal deadline, owner can cancel and recover the reward.
 
 Run:
 
@@ -83,4 +88,3 @@ Example advanced output:
 ## Reflection
 
 The bounty title, rubric, reward, deadlines, commitments, reveal status, judge result, and final winner should be public because they are needed for trust and auditability. The actual answers should stay hidden during the submission phase so later participants cannot copy earlier work. Salts should stay private until reveal, because the salt is what prevents people from guessing or reusing a commitment. AI should compare submissions against the rubric, summarize strengths and weaknesses, and recommend a ranking. A human bounty owner should make the final payout decision because AI output can be wrong, biased, malformed, or misread. The contract should enforce deadlines, eligibility, and payment rules because those are objective rules. The best bounty system uses AI for evaluation support, humans for accountability, and smart contracts for transparent enforcement.
-
