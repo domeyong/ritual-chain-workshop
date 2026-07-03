@@ -58,6 +58,7 @@ Implemented tests are in `hardhat/test/AIJudge.ts`. `hardhat/contracts/TestableA
 - Owner-only controls: non-owners cannot judge, finalize, or cancel.
 - Judging safety: judging is blocked before the reveal deadline and empty LLM input is rejected.
 - Payout safety: invalid winners and unrevealed winners are rejected, one revealed winner is paid once, and repeat finalization is blocked.
+- Randomized regression: 50 commit-reveal rounds cover different participant counts, reveal sets, payout winners, and no-reveal cancellations.
 
 Run:
 

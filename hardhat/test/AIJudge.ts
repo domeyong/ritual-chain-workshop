@@ -470,4 +470,92 @@ describe("AIJudge commit-reveal flow", () => {
 
     await connection.close();
   });
+
+  it("survives 50 randomized commit-reveal payout and cancel scenarios", async () => {
+    for (let round = 0; round < 50; round++) {
+      const {
+        aiJudge,
+        connection,
+        networkHelpers,
+        publicClient,
+        walletClients,
+      } = await deployBounty("TestableAIJudge");
+
+      const participantCount = 1 + (round % 10);
+      const revealModulo = 2 + (round % 3);
+      const revealedIndexes: number[] = [];
+
+      for (let i = 0; i < participantCount; i++) {
+        const participant = walletClients[i + 1];
+        const answer = `round ${round} answer ${i}`;
+        const salt = toHex(`round ${round} salt ${i}`, { size: 32 });
+        const commitment = commitmentFor(
+          answer,
+          salt,
+          participant.account.address,
+          1n,
+        );
+
+        await aiJudge.write.submitCommitment([1n, commitment], {
+          account: participant.account,
+        });
+      }
+
+      await networkHelpers.time.increaseTo(
+        Number(await aiJudge.read.bounties([1n]).then((bounty) => bounty[4])),
+      );
+
+      for (let i = 0; i < participantCount; i++) {
+        if ((i + round) % revealModulo !== 0) {
+          continue;
+        }
+
+        const participant = walletClients[i + 1];
+        const answer = `round ${round} answer ${i}`;
+        const salt = toHex(`round ${round} salt ${i}`, { size: 32 });
+
+        await aiJudge.write.revealAnswer([1n, answer, salt], {
+          account: participant.account,
+        });
+
+        revealedIndexes.push(i);
+      }
+
+      await networkHelpers.time.increaseTo(
+        Number(await aiJudge.read.bounties([1n]).then((bounty) => bounty[5])),
+      );
+
+      if (revealedIndexes.length === 0) {
+        await aiJudge.write.cancelBounty([1n]);
+
+        const bounty = await aiJudge.read.getBounty([1n]);
+        assert.equal(bounty[3], 0n);
+        assert.equal(bounty[6], false);
+        assert.equal(bounty[7], true);
+      } else {
+        await aiJudge.write.forceJudgedForTest([1n, toHex(`AI review ${round}`)]);
+
+        const winnerIndex = revealedIndexes[round % revealedIndexes.length];
+        const winner = walletClients[winnerIndex + 1];
+        const before = await publicClient.getBalance({
+          address: winner.account.address,
+        });
+
+        await aiJudge.write.finalizeWinner([1n, BigInt(winnerIndex)]);
+
+        const after = await publicClient.getBalance({
+          address: winner.account.address,
+        });
+        const bounty = await aiJudge.read.getBounty([1n]);
+
+        assert.equal(after - before, parseEther("1"));
+        assert.equal(bounty[3], 0n);
+        assert.equal(bounty[6], true);
+        assert.equal(bounty[7], true);
+        assert.equal(bounty[9], BigInt(winnerIndex));
+      }
+
+      await connection.close();
+    }
+  });
 });
